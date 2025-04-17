@@ -3,7 +3,7 @@
 import { sql } from './db'; // Database connection logic
 import { formatDate } from '../utils/formatDate'; // Utility to format date
 import { Anime } from '../types'; // Import only the Anime type since AnimeEpisode is not used
-import { getScraperRunning } from '../app/api/dashboard/stop-scrape/route'; // Import the state check
+import { getScraperRunning } from './scraperState'; // Import the state check from the new utility
 
 const BASE = process.env.ANILIST_API_BASE!;
 

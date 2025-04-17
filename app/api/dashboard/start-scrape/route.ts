@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { runScraper } from '../../../../lib/scraper';
-import { setScraperRunning } from '../stop-scrape/route';
+import { setScraperRunning } from '../../../../lib/scraperState';
 import { sql } from '../../../../lib/db';
 
 export async function POST(): Promise<NextResponse> {
