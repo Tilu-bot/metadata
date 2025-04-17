@@ -1,7 +1,7 @@
 // app/dashboard/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 // Define an interface for the stats to avoid using 'any'
 interface ScraperStats {
@@ -11,64 +11,83 @@ interface ScraperStats {
   lastId?: number;
   lastRun?: string;
   episodeCount?: number;
+  isRunning: boolean;
+  error?: string;
 }
 
 export default function Dashboard() {
   const [stats, setStats] = useState<ScraperStats | null>(null);
   const [isScraping, setIsScraping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchStats = async () => {
+  // Memoize fetchStats to avoid recreation on each render
+  const fetchStats = useCallback(async () => {
     try {
-      // Create a dashboard-specific endpoint that doesn't require auth headers in the frontend
-      const res = await fetch('/api/dashboard/stats');
+      // Add cache-busting query parameter
+      const timestamp = new Date().getTime();
+      const res = await fetch(`/api/dashboard/stats?_=${timestamp}`, {
+        // Ensure we always get fresh data
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
       if (!res.ok) {
         throw new Error('Failed to fetch stats');
       }
+      
       const data = await res.json();
       setStats(data);
+      setIsScraping(data.isRunning);
+      setLastUpdated(new Date());
       setError(null);
     } catch (err) {
       setError('Error fetching stats');
       console.error(err);
     }
-  };
+  }, []);
 
   const startScraping = async () => {
     try {
-      // Create a dashboard-specific endpoint that doesn't require auth headers in the frontend
       const res = await fetch('/api/dashboard/start-scrape', {
         method: 'POST',
       });
       
       if (res.ok) {
         setIsScraping(true);
-        fetchStats();  // Keep refreshing the stats.
+        // Immediately fetch stats to update the UI
+        await fetchStats();
         setError(null);
       } else {
-        throw new Error('Failed to start scraping');
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to start scraping');
       }
     } catch (err) {
-      setError('Error starting scraper');
+      setError(err instanceof Error ? err.message : 'Error starting scraper');
       console.error(err);
     }
   };
 
   const stopScraping = async () => {
     try {
-      // Call the stop-scrape endpoint to signal the server to stop the scraping process
       const res = await fetch('/api/dashboard/stop-scrape', {
         method: 'POST',
       });
       
       if (res.ok) {
         setIsScraping(false);
+        // Immediately fetch stats to update the UI
+        await fetchStats();
         setError(null);
       } else {
-        throw new Error('Failed to stop scraping');
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to stop scraping');
       }
     } catch (err) {
-      setError('Error stopping scraper');
+      setError(err instanceof Error ? err.message : 'Error stopping scraper');
       console.error(err);
     }
   };
@@ -77,20 +96,24 @@ export default function Dashboard() {
     // Initial fetch of stats when the component mounts
     fetchStats();
     
+    // Always refresh stats periodically, regardless of scraper state
     const interval = setInterval(() => {
-      if (isScraping) {
-        fetchStats();
-      }
-    }, 5000); // Update the dashboard every 5 seconds
+      fetchStats();
+    }, 3000); // Update more frequently (every 3 seconds)
 
     return () => clearInterval(interval); // Cleanup on unmount
-  }, [isScraping]);
+  }, [fetchStats]);
 
   return (
     <div className="max-w-6xl mx-auto">
       <header className="py-6 mb-8 border-b">
         <h1 className="text-3xl font-bold text-gray-800">Anime Metadata Scraper Dashboard</h1>
         <p className="text-gray-600 mt-2">Monitor and control your anime metadata collection process</p>
+        {lastUpdated && (
+          <p className="text-xs text-gray-500 mt-1">
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </p>
+        )}
       </header>
       
       {error && (

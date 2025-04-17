@@ -21,6 +21,7 @@ export interface Anime {
     endDate: string | null;
     releaseDate: string;
     episodesList: AnimeEpisode[] | null;
+    [key: string]: unknown;
   }
   
   export interface AnimeEpisode {
@@ -30,4 +31,3 @@ export interface Anime {
     description: string | null;
     airedAt: string | null;
   }
-  
