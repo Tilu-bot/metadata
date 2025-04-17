@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
     "metadata-scraper": "file:",
     "next": "15.3.0",
     "pg": "^8.14.1",
