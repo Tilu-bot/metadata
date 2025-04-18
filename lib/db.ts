@@ -45,8 +45,27 @@ try {
     idleTimeoutMillis: 30000 // Close idle connections after 30 seconds
   });
   
-  isDbConnected = true;
-  console.log('Database connection initialized successfully');
+  // Test the connection to verify it works
+  (async () => {
+    try {
+      const testResult = await sql`SELECT 1 as test`;
+      if (testResult && testResult.length > 0) {
+        isDbConnected = true;
+        console.log('Database connection verified successfully');
+      } else {
+        throw new Error('Database connection test failed');
+      }
+    } catch (testError) {
+      console.error('Database connection test failed:', testError);
+      connectionError = testError instanceof Error ? testError : new Error('Database connection test failed');
+      // Keep using noopSql as fallback
+      sql = noopSql;
+    }
+  })().catch(err => {
+    console.error('Async database verification error:', err);
+  });
+  
+  console.log('Database connection initialization completed');
 } catch (error) {
   sql = noopSql; // Set sql to the noopSql if connection fails
   connectionError = error instanceof Error ? error : new Error('Unknown database connection error');
