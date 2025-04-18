@@ -64,13 +64,16 @@ async function recordFailure(animeId: number, reason: string): Promise<void> {
     `;
 
     if (existing.length > 0) {
+      // Use double cast pattern to properly type the result
+      const record = existing[0] as unknown as { id: number; attempt_count: number };
+      
       // Update existing record
       await sql`
         UPDATE anime_failures 
-        SET attempt_count = ${existing[0].attempt_count + 1},
+        SET attempt_count = ${record.attempt_count + 1},
             reason = ${reason},
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${existing[0].id}
+        WHERE id = ${record.id}
       `;
     } else {
       // Create new failure record
@@ -446,21 +449,26 @@ export async function runScraper(start = 1, limit = 500) {
     }
     
     try {
+      // Get failure records from database
       const failureRecord = await sql`
         SELECT attempt_count FROM anime_failures 
         WHERE anime_id = ${id}
       `;
       
-      if (failureRecord.length > 0 && failureRecord[0].attempt_count >= 3) {
-        console.log(`Skipping anime ID ${id} after ${failureRecord[0].attempt_count} failed attempts`);
-        
-        // Check for graceful stop after skipping an item
-        if (isGracefulStopRequested()) {
-          console.log('Graceful stop requested, stopping after skipping the current item');
-          break;
+      if (failureRecord.length > 0) {
+        // Use double cast pattern to properly type the result
+        const record = failureRecord[0] as unknown as { attempt_count: number };
+        if (record.attempt_count >= 3) {
+          console.log(`Skipping anime ID ${id} after ${record.attempt_count} failed attempts`);
+          
+          // Check for graceful stop after skipping an item
+          if (isGracefulStopRequested()) {
+            console.log('Graceful stop requested, stopping after skipping the current item');
+            break;
+          }
+          
+          continue;
         }
-        
-        continue;
       }
     } catch (error) {
       console.warn(`Could not check failure records for anime ID ${id}:`, error);

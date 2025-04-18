@@ -15,9 +15,17 @@ export async function POST(): Promise<NextResponse> {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
     
-    // Get the last anime ID from the database
+    // Get the last anime ID from the database with proper typing
     const result = await sql`SELECT MAX(id) as last_id FROM anime`;
-    const lastId = result[0]?.last_id ? parseInt(result[0].last_id) : 0;
+    
+    // Safely extract and transform the data
+    let lastId = 0;
+    if (result && result.length > 0) {
+      // Use the proper double casting pattern for TypeScript
+      const row = result[0] as unknown as { last_id: string | number | null };
+      const lastIdValue = row.last_id;
+      lastId = lastIdValue ? (typeof lastIdValue === 'number' ? lastIdValue : parseInt(String(lastIdValue), 10)) : 0;
+    }
     
     // Set starting ID (use 1 if database is empty)
     const startId = lastId > 0 ? lastId + 1 : 1;

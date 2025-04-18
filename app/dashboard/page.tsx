@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 
-// Define an interface for the stats to avoid using 'any'
+// Updated interface to include database connection status
 interface ScraperStats {
   scrapeCount: number;
   failureCount: number;
@@ -13,6 +13,9 @@ interface ScraperStats {
   episodeCount?: number;
   isRunning: boolean;
   error?: string;
+  dbConnected?: boolean;
+  dbError?: string;
+  gracefulStopRequested?: boolean;
 }
 
 export default function Dashboard() {
@@ -42,10 +45,19 @@ export default function Dashboard() {
       const data = await res.json();
       setStats(data);
       setIsScraping(data.isRunning);
+      
+      // Set error state if there's a database connection error
+      if (data.dbError) {
+        setError(`Database error: ${data.dbError}`);
+      } else if (data.error) {
+        setError(data.error);
+      } else {
+        setError(null);
+      }
+      
       setLastUpdated(new Date());
-      setError(null);
     } catch (err) {
-      setError('Error fetching stats');
+      setError('Error fetching stats: ' + (err instanceof Error ? err.message : 'Unknown error'));
       console.error(err);
     }
   }, []);
@@ -115,6 +127,30 @@ export default function Dashboard() {
           </p>
         )}
       </header>
+      
+      {/* Database connection status banner */}
+      {stats && stats.dbConnected === false && (
+        <div className="p-4 mb-6 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg shadow-sm">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Database Not Connected: Please check your environment variables. {stats.dbError && `(${stats.dbError})`}</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Graceful stop in progress notice */}
+      {stats && stats.gracefulStopRequested && stats.isRunning && (
+        <div className="p-4 mb-6 bg-blue-100 border border-blue-400 text-blue-800 rounded-lg shadow-sm">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Graceful stop in progress. Waiting for current anime to complete...</span>
+          </div>
+        </div>
+      )}
       
       {error && (
         <div className="p-4 mb-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-sm">
@@ -199,20 +235,20 @@ export default function Dashboard() {
               <h3 className="font-bold text-lg text-gray-800 mb-4">Scraper Status</h3>
               <div className="flex items-center mb-4">
                 <div className={`w-3 h-3 rounded-full mr-2 ${isScraping ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                <span className="font-medium">{isScraping ? 'Active' : 'Inactive'}</span>
+                <span className="font-medium text-gray-800">{isScraping ? 'Active' : 'Inactive'}</span>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <span className="font-medium">{isScraping ? 'Running' : 'Stopped'}</span>
+                  <span className="text-gray-700">Status:</span>
+                  <span className="font-medium text-gray-800">{isScraping ? 'Running' : 'Stopped'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Episodes collected:</span>
-                  <span className="font-medium">{stats.episodeCount || 0}</span>
+                  <span className="text-gray-700">Episodes collected:</span>
+                  <span className="font-medium text-gray-800">{stats.episodeCount || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Last run:</span>
-                  <span className="font-medium">{stats.lastRun ? new Date(stats.lastRun).toLocaleString() : 'Not available'}</span>
+                  <span className="text-gray-700">Last run:</span>
+                  <span className="font-medium text-gray-800">{stats.lastRun ? new Date(stats.lastRun).toLocaleString() : 'Not available'}</span>
                 </div>
               </div>
             </div>
