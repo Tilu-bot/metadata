@@ -1,16 +1,19 @@
 // app/api/dashboard/stop-scrape/route.ts
 
 import { NextResponse } from 'next/server';
-import { setScraperRunning } from '../../../../lib/scraperState';
+import { requestGracefulStop, getScraperInfo } from '../../../../lib/scraperState';
 
 export async function POST(): Promise<NextResponse> {
   try {
-    // Set the scraper running flag to false
-    setScraperRunning(false);
+    // Request a graceful stop first
+    requestGracefulStop();
+    
+    const scraperInfo = getScraperInfo();
     
     return NextResponse.json({
-      message: 'Scraping stopped successfully',
-      isRunning: false,
+      message: 'Graceful stopping initiated. The current anime being processed will complete before stopping.',
+      isRunning: scraperInfo.isRunning,
+      gracefulStopRequested: scraperInfo.gracefulStopRequested
     });
   } catch (error) {
     console.error('Error stopping scraper:', error);

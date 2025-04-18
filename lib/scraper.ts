@@ -3,7 +3,7 @@
 import { sql } from './db';
 import { formatDate } from '../utils/formatDate';
 import { Anime } from '../types';
-import { getScraperRunning, setScraperRunning } from './scraperState';
+import { getScraperRunning, setScraperRunning, isGracefulStopRequested } from './scraperState';
 
 const BASE = process.env.ANILIST_API_BASE!;
 
@@ -396,7 +396,17 @@ export async function insertAnime(anime: Anime): Promise<boolean> {
 // Ensure the database schema is initialized
 async function ensureSchema(): Promise<boolean> {
   try {
-    const res = await fetch('/api/db/init', { method: 'POST' });
+    // Use a more robust approach to call the API that will work in all environments
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    
+    const res = await fetch(`${baseUrl}/api/db/init`, { 
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     return res.ok;
   } catch (error) {
     console.error('Error initializing database schema:', error);
@@ -414,6 +424,7 @@ export async function runScraper(start = 1, limit = 500) {
   await ensureSchema().catch(() => console.warn('Schema initialization skipped'));
 
   for (let id = start; scrapeCount < limit; id++) {
+    // Check if regular stop (immediate) is requested
     if (!getScraperRunning()) {
       console.log('Scraper stopped by user');
       break;
@@ -424,6 +435,13 @@ export async function runScraper(start = 1, limit = 500) {
     const exists = await checkAnimeExists(id);
     if (exists) {
       console.log(`Anime ID ${id} already exists, skipping...`);
+      
+      // Check for graceful stop after completing each item
+      if (isGracefulStopRequested()) {
+        console.log('Graceful stop requested, stopping after completing the current item');
+        break;
+      }
+      
       continue;
     }
     
@@ -435,12 +453,20 @@ export async function runScraper(start = 1, limit = 500) {
       
       if (failureRecord.length > 0 && failureRecord[0].attempt_count >= 3) {
         console.log(`Skipping anime ID ${id} after ${failureRecord[0].attempt_count} failed attempts`);
+        
+        // Check for graceful stop after skipping an item
+        if (isGracefulStopRequested()) {
+          console.log('Graceful stop requested, stopping after skipping the current item');
+          break;
+        }
+        
         continue;
       }
     } catch (error) {
       console.warn(`Could not check failure records for anime ID ${id}:`, error);
     }
     
+    // Fetch and process this anime completely before checking for a stop request
     const anime = await fetchAnime(id);
     
     if (!anime) {
@@ -451,9 +477,17 @@ export async function runScraper(start = 1, limit = 500) {
         console.log('Too many consecutive failures, stopping scraper');
         break;
       }
+      
+      // Check for graceful stop after failed fetch
+      if (isGracefulStopRequested()) {
+        console.log('Graceful stop requested, stopping after failed fetch');
+        break;
+      }
+      
       continue;
     }
 
+    // Complete the full insert of this anime before considering stopping
     const inserted = await insertAnime(anime);
     
     if (inserted) {
@@ -464,6 +498,12 @@ export async function runScraper(start = 1, limit = 500) {
     } else {
       failureCount++;
       console.log(`Failed to insert anime ID ${id}`);
+    }
+    
+    // Only check for graceful stop after fully completing an item
+    if (isGracefulStopRequested()) {
+      console.log('Graceful stop requested, stopping after completing current anime');
+      break;
     }
   }
 
