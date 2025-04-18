@@ -16,7 +16,14 @@ export async function GET(req: Request): Promise<NextResponse> {
   try {
     // Get the last anime ID from the database
     const result = await sql`SELECT MAX(id) as last_id FROM anime`;
-    const lastId = result[0]?.last_id ? parseInt(result[0].last_id) : 0;
+    
+    // Use proper casting with the same pattern as other files
+    let lastId = 0;
+    if (result && result.length > 0) {
+      const row = result[0] as unknown as { last_id: string | number | null };
+      const lastIdValue = row.last_id;
+      lastId = lastIdValue ? (typeof lastIdValue === 'number' ? lastIdValue : parseInt(String(lastIdValue), 10)) : 0;
+    }
     
     // Set starting ID (use 1 if database is empty)
     const startId = lastId > 0 ? lastId + 1 : 1;
